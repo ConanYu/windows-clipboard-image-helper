@@ -1,0 +1,37 @@
+[package]
+name = "windows-clipboard-image-helper"
+version = "0.0.0"
+description = "A Tauri App"
+authors = ["ConanYu"]
+license = "MIT"
+repository = "https://github.com/ConanYu/windows-clipboard-image-helper"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+tauri-build = { version = "*", features = [] }
+
+[dependencies]
+tauri = { version = "*", features = ["notification-all", "system-tray", "shell-open"] }
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
+winapi = { version = "*", features = ["winuser", "windef", "tlhelp32"] }
+anyhow = "*"
+tokio = { version = "*", features = ["full"] }
+arboard = "*"
+reqwest = "*"
+log = "*"
+log4rs = "*"
+rusqlite = { version = "*", features = ["bundled"] }
+image = "*"
+once_cell = "*"
+chrono = "*"
+base64 = "*"
+sha256 = "*"
+format-sql-query = "*"
+
+[features]
+# this feature is used for production builds or when `devPath` points to the filesystem
+# DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]
