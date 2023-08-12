@@ -72,6 +72,15 @@ fn re_copy(image_id: i32) -> Result<(), String> {
     }
 }
 
+#[tauri::command(rename_all = "snake_case")]
+fn delete_image(image_id: i32) -> Result<(), String> {
+    let result = dal::model::delete_image(image_id);
+    match result {
+        Ok(r) => Ok(r),
+        Err(err) => Err(err.to_string()),
+    }
+}
+
 fn gen_tray() -> SystemTray {
     let quit = CustomMenuItem::new("quit".to_string(), "退出");
     let show = CustomMenuItem::new("show".to_string(), "显示");
@@ -125,6 +134,7 @@ async fn main() -> Result<()> {
             set_settings,
             get_image,
             re_copy,
+            delete_image,
         ])
         .setup(|app| {
             #[cfg(debug_assertions)]

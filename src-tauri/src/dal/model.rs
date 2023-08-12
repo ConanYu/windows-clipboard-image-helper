@@ -41,17 +41,21 @@ pub struct Image {
 pub fn insert_image(image: &Vec<u8>, width: &i32, height: &i32, ocr: &Option<OCR>, sum: &String) -> Result<()> {
     let client = client();
     // 校验是否是上一次插入的图片
-    let mut stmt = client.prepare("SELECT sum FROM image ORDER BY mtime DESC LIMIT 1")?;
+    let mut stmt = client.prepare("SELECT id, sum FROM image ORDER BY mtime DESC LIMIT 1")?;
     let mut rows = stmt.query(named_params! {})?;
     let mut last_sum = "-".to_string();
+    let mut id = 0;
     while let Some(row) = rows.next()? {
-        last_sum = row.get(0)?;
+        id = row.get(0)?;
+        last_sum = row.get(1)?;
     }
+    let now = Local::now().timestamp_millis();
     if &last_sum == sum {
+        // 设置修改时间
+        client.execute(r#"UPDATE image SET mtime = ?2 WHERE id = ?1"#, (&id, &now))?;
         return Ok(());
     }
     // 正式开始插入图片
-    let now = Local::now().timestamp_millis();
     let ocr = match ocr {
         None => None,
         Some(ocr) => Some(serde_json::to_string(ocr)?),
@@ -63,12 +67,20 @@ pub fn insert_image(image: &Vec<u8>, width: &i32, height: &i32, ocr: &Option<OCR
     Ok(())
 }
 
+pub fn delete_image(image_id: i32) -> Result<()> {
+    let client = client();
+    client.execute(r#"DELETE FROM image WHERE id = ?1"#, (&image_id, ))?;
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GetImageRequest {
     pub page_no: Option<i64>,
     pub page_size: Option<i64>,
     pub id: Option<Vec<i64>>,
     pub text: Option<Vec<String>>,
+    pub date_range_from: Option<i64>,
+    pub date_range_to: Option<i64>,
 }
 
 fn gen_where_sql(request: &GetImageRequest) -> String {
@@ -92,6 +104,12 @@ fn gen_where_sql(request: &GetImageRequest) -> String {
             sql.push_str(format!(" AND ({}) ", s.join(" OR ")).as_str());
         }
     }
+    if let Some(date_range_from) = &request.date_range_from {
+        sql.push_str(format!(" AND ctime >= {} ", date_range_from).as_str());
+    }
+    if let Some(date_range_to) = &request.date_range_to {
+        sql.push_str(format!(" AND ctime <= {} ", date_range_to).as_str());
+    }
     sql
 }
 
@@ -105,7 +123,7 @@ pub fn get_image(request: &GetImageRequest) -> Result<Vec<Image>> {
     // 构造SQL
     let mut sql = r#" SELECT id, image, ocr, size, width, height, ctime, mtime, sum FROM image WHERE 1 = 1 "#.to_string();
     sql.push_str(gen_where_sql(request).as_str());
-    sql.push_str("ORDER BY mtime DESC LIMIT :page_size OFFSET :offset ");
+    sql.push_str(" ORDER BY mtime DESC LIMIT :page_size OFFSET :offset ");
     let mut stmt = client.prepare(sql.as_str())?;
     let mut rows = stmt.query(named_params! {
         ":page_size": page_size,
