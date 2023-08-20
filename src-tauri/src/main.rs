@@ -7,12 +7,12 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD_NO_PAD;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem, Wry};
+use tauri::{AppHandle, CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem, Window, Wry};
 use crate::clipboard::listen;
 use crate::dal::clean::regular_cleaning;
 use crate::dal::model::{GetImageRequest, OCR};
 use crate::dal::save_image;
-use crate::settings::Settings;
+use crate::settings::{Settings, CloseWindowType};
 
 pub mod clipboard;
 pub mod dal;
@@ -20,14 +20,21 @@ pub mod initialize;
 pub mod ocr;
 pub mod settings;
 
+fn conv_result<T: Serialize, E: ToString>(r: Result<T, E>) -> Result<T, String> {
+    match r {
+        Ok(r) => Ok(r),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 #[tauri::command(rename_all = "snake_case")]
 fn get_settings() -> Settings {
     settings::get_settings()
 }
 
 #[tauri::command(rename_all = "snake_case")]
-fn set_settings(settings: Settings) {
-    settings::set_settings(settings);
+fn set_settings(settings: Settings) -> Result<(), String> {
+    conv_result(settings::set_settings(settings))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -43,7 +50,7 @@ struct ImageShow {
 
 #[tauri::command(rename_all = "snake_case")]
 fn get_image(request: GetImageRequest) -> Result<Vec<ImageShow>, String> {
-    match dal::model::get_image(&request) {
+    match dal::model::get_image(request) {
         Ok(image) => {
             let mut resp = vec![];
             for image in image {
@@ -58,27 +65,47 @@ fn get_image(request: GetImageRequest) -> Result<Vec<ImageShow>, String> {
                 });
             }
             Ok(resp)
-        },
+        }
         Err(err) => Err(err.to_string()),
     }
 }
 
 #[tauri::command(rename_all = "snake_case")]
 fn re_copy(image_id: i32) -> Result<(), String> {
-    let result = clipboard::re_copy(image_id);
-    match result {
-        Ok(r) => Ok(r),
-        Err(err) => Err(err.to_string()),
-    }
+    conv_result(clipboard::re_copy(image_id))
 }
 
 #[tauri::command(rename_all = "snake_case")]
 fn delete_image(image_id: i32) -> Result<(), String> {
-    let result = dal::model::delete_image(image_id);
-    match result {
-        Ok(r) => Ok(r),
-        Err(err) => Err(err.to_string()),
+    conv_result(dal::model::delete_image(image_id))
+}
+
+#[tauri::command(rename_all = "snake_case")]
+fn close_window<T>(window: Window<T>, force: bool, remember: bool) -> Result<(), String>
+where T: tauri_runtime::Runtime<tauri::EventLoopMessage> {
+    if remember {
+        let r = settings::set_settings(Settings {
+            auto_start: None,
+            database_limit_type: None,
+            database_limit: None,
+            close_window_type: Some(match force {
+                true => CloseWindowType::EXIT,
+                false => CloseWindowType::BACKGROUND,
+            }),
+        });
+        if let Err(err) = r {
+            return Err(err.to_string());
+        }
     }
+    if force {
+        std::process::exit(0);
+    }
+    conv_result(window.hide())
+}
+
+#[tauri::command(rename_all = "snake_case")]
+fn upload_image(image_path: Vec<String>) -> Result<(), String> {
+    conv_result(dal::upload_image(&image_path))
 }
 
 fn gen_tray() -> SystemTray {
@@ -88,7 +115,7 @@ fn gen_tray() -> SystemTray {
         .add_item(show)
         .add_native_item(SystemTrayMenuItem::Separator)
         .add_item(quit);
-    SystemTray::new().with_menu(tray_menu).with_tooltip("windows-clipboard-image-helper")
+    SystemTray::new().with_menu(tray_menu).with_tooltip("Windows剪切板图片工具")
 }
 
 static IDENTIFIER: Lazy<RwLock<String>> = Lazy::new(|| {
@@ -135,6 +162,8 @@ async fn main() -> Result<()> {
             get_image,
             re_copy,
             delete_image,
+            close_window,
+            upload_image,
         ])
         .setup(|app| {
             #[cfg(debug_assertions)]
@@ -148,22 +177,14 @@ async fn main() -> Result<()> {
         })
         .on_window_event(|event| match event.event() {
             tauri::WindowEvent::CloseRequested { api, .. } => {
-                let identifier = IDENTIFIER.read().unwrap();
-                if identifier.as_str() != "" {
-                    // FIXME: 这个通知打完包就没了 原因不明
-                    tauri::api::notification::Notification::new(identifier.as_str())
-                        .title("windows-clipboard-image-helper 在后台运行")
-                        .show().unwrap();
-                }
-                event.window().hide().unwrap();
                 api.prevent_close();
             }
             _ => {}
         }).build(tauri::generate_context!())?;
 
-        *IDENTIFIER.write().unwrap() = app.config().tauri.bundle.identifier.clone();
+    *IDENTIFIER.write().unwrap() = app.config().tauri.bundle.identifier.clone();
 
-        app.run(|_app_handler, _event| {});
+    app.run(|_app_handler, _event| {});
 
     Ok(())
 }

@@ -1,6 +1,8 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use chrono::Local;
+use color_space::{CompareCie2000, Lab, Rgb};
 use format_sql_query::QuotedData;
+use image::load_from_memory;
 use rusqlite::named_params;
 use serde::{Deserialize, Serialize};
 use crate::dal::client::client;
@@ -74,17 +76,35 @@ pub fn delete_image(image_id: i32) -> Result<()> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ColorFilter {
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+    // 覆盖比例 范围：[0,1]
+    pub cover_ratio_from: f64,
+    pub cover_ratio_to: f64,
+    // 可接受的DeltaE 范围：[0,100]
+    pub difference: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GetImageRequest {
-    pub page_no: Option<i64>,
-    pub page_size: Option<i64>,
+    // 上一次返回图片中最小的mtime
+    pub mtime: Option<i64>,
+    // 返回图片的最大数量
+    pub limit: Option<i64>,
     pub id: Option<Vec<i64>>,
     pub text: Option<Vec<String>>,
     pub date_range_from: Option<i64>,
     pub date_range_to: Option<i64>,
+    pub color_filter: Option<ColorFilter>,
 }
 
 fn gen_where_sql(request: &GetImageRequest) -> String {
     let mut sql = "".to_string();
+    if let Some(mtime) = &request.mtime {
+        sql.push_str(format!(" AND mtime < {} ", mtime).as_str());
+    }
     if let Some(id) = &request.id {
         if id.len() > 0 {
             let v: Vec<String> = id.iter().map(|v| v.to_string()).collect();
@@ -113,21 +133,18 @@ fn gen_where_sql(request: &GetImageRequest) -> String {
     sql
 }
 
-pub fn get_image(request: &GetImageRequest) -> Result<Vec<Image>> {
+fn get_image_inner(request: &GetImageRequest) -> Result<Vec<Image>> {
     let client = client();
     // 对请求做进一步处理
-    let page_no = request.page_no.or(Some(1)).unwrap();
-    let page_size = request.page_size.or(Some(16)).unwrap();
-    let offset = (page_no - 1) * page_size;
+    let limit = request.limit.or(Some(16)).unwrap();
 
     // 构造SQL
     let mut sql = r#" SELECT id, image, ocr, size, width, height, ctime, mtime, sum FROM image WHERE 1 = 1 "#.to_string();
     sql.push_str(gen_where_sql(request).as_str());
-    sql.push_str(" ORDER BY mtime DESC LIMIT :page_size OFFSET :offset ");
+    sql.push_str(" ORDER BY mtime DESC LIMIT :limit");
     let mut stmt = client.prepare(sql.as_str())?;
     let mut rows = stmt.query(named_params! {
-        ":page_size": page_size,
-        ":offset": offset,
+        ":limit": limit,
     })?;
 
     // 构造返回值
@@ -144,6 +161,74 @@ pub fn get_image(request: &GetImageRequest) -> Result<Vec<Image>> {
             mtime: row.get(7)?,
             sum: row.get(8)?,
         });
+    }
+    Ok(ret)
+}
+
+pub fn filter_image(image: &Image, request: &GetImageRequest) -> Result<bool> {
+    if let Some(color_filter) = &request.color_filter {
+        // 使用DeltaE计算颜色差异 计算颜色在图片中的比重
+        // 颜色差异在维基百科中的介绍：https://zh.wikipedia.org/wiki/%E9%A2%9C%E8%89%B2%E5%B7%AE%E5%BC%82
+        let image = load_from_memory(image.image.as_slice())?;
+        let image = image.into_rgb8();
+        let width = image.width();
+        let height = image.height();
+        let color = Lab::from(Rgb::new(color_filter.red.clone() as f64, color_filter.green.clone() as f64, color_filter.blue.clone() as f64));
+        let mut count: i64 = 0;
+        for x in 0..width {
+            for y in 0..height {
+                let p = image.get_pixel(x.clone(), y.clone());
+                let c = Lab::from(Rgb::new(p[0].clone() as f64, p[1].clone() as f64, p[2].clone() as f64));
+                let delta_e = color.compare_cie2000(&c);
+                if color_filter.difference >= delta_e {
+                    count += 1;
+                }
+            }
+        }
+        // 覆盖率不在区间内 舍弃这个图片
+        let cover_ratio = (count as f64) / (width as f64 * height as f64);
+        if cover_ratio < color_filter.cover_ratio_from || cover_ratio > color_filter.cover_ratio_to {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+pub fn get_image(mut request: GetImageRequest) -> Result<Vec<Image>> {
+    let mut ret = vec![];
+    if let Some(limit) = request.limit {
+        if limit <= 0 {
+            bail!("get_image error with limit <= 0");
+        }
+    }
+    if request.limit.is_none() {
+        request.limit = Some(16);
+    }
+    let source_limit = request.limit.unwrap();
+    loop {
+        let mut mtime: Option<i64> = None;
+
+        for image in get_image_inner(&request)? {
+            match mtime {
+                None => {
+                    mtime = Some(image.mtime.clone());
+                }
+                Some(t) => {
+                    mtime = Some(t.min(image.mtime.clone()));
+                }
+            }
+            if filter_image(&image, &request)? {
+                ret.push(image);
+                if ret.len() as i64 >= source_limit {
+                    return Ok(ret);
+                }
+            }
+        }
+        if mtime.is_none() {
+            break;
+        }
+        request.limit = Some(request.limit.unwrap() * 2);
+        request.mtime = mtime;
     }
     Ok(ret)
 }

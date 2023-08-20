@@ -540,6 +540,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 
 [[package]]
+name = "color_space"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3776b2bcc4e914db501bb9be9572dd706e344b9eb8f882894f3daa651d281381"
+
+[[package]]
 name = "combine"
 version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3530,6 +3536,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "src-macro"
+version = "0.0.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.27",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4667,6 +4682,7 @@ dependencies = [
  "arboard",
  "base64 0.21.2",
  "chrono",
+ "color_space",
  "format-sql-query",
  "image",
  "log",
@@ -4677,8 +4693,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sha256",
+ "src-macro",
  "tauri",
  "tauri-build",
+ "tauri-runtime",
  "tokio",
  "winapi",
 ]

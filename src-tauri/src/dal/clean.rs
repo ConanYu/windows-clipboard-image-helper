@@ -3,8 +3,7 @@ use anyhow::Result;
 use log::error;
 use rusqlite::named_params;
 use crate::dal::client::{client, get_database_path};
-use crate::get_settings;
-use crate::settings::DatabaseLimitType;
+use crate::settings::{get_settings, DatabaseLimitType};
 
 pub fn get_count_of_image() -> Result<i64> {
     let client = client();
@@ -21,18 +20,19 @@ pub async fn regular_cleaning() {
     loop {
         let settings = get_settings();
         let mut need_clean = false;
-        match &settings.database_limit_type {
+        let database_limit_type = &settings.database_limit_type.or(Some(DatabaseLimitType::MB)).unwrap();
+        match database_limit_type {
             DatabaseLimitType::MB => {
                 let result = fs::metadata(get_database_path());
                 match result {
-                    Ok(data) => need_clean = (data.len() / 1024 / 1024) as i64 > settings.database_limit,
+                    Ok(data) => need_clean = (data.len() / 1024 / 1024) as i64 > settings.database_limit.or(Some(1024)).unwrap(),
                     Err(err) => error!("regular cleaning error: {}", err.to_string()),
                 }
             }
             DatabaseLimitType::NUM => {
                 let count = get_count_of_image();
                 match count {
-                    Ok(count) => need_clean = count > settings.database_limit,
+                    Ok(count) => need_clean = count > settings.database_limit.or(Some(1024)).unwrap(),
                     Err(err) => error!("regular cleaning error: {}", err.to_string()),
                 }
             }

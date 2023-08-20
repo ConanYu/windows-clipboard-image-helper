@@ -11,8 +11,7 @@ export default function Detail(props: { imageId: number, jumpIndex: () => void }
   useEffect(() => {
     invoke('get_image', {
       request: {
-        page_no: 1,
-        page_size: 1,
+        limit: 1,
         id: [imageId],
       }
     }).then((value) => {

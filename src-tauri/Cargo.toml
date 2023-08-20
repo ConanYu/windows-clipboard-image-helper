@@ -1,7 +1,7 @@
 [package]
 name = "windows-clipboard-image-helper"
 version = "0.0.0"
-description = "A Tauri App"
+description = "Windows剪切板图片工具"
 authors = ["ConanYu"]
 license = "MIT"
 repository = "https://github.com/ConanYu/windows-clipboard-image-helper"
@@ -13,10 +13,11 @@ edition = "2021"
 tauri-build = { version = "*", features = [] }
 
 [dependencies]
-tauri = { version = "*", features = ["notification-all", "system-tray", "shell-open"] }
+tauri = { version = "*", features = ["dialog-open", "notification-all", "system-tray", "shell-open"] }
+tauri-runtime = "*"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
-winapi = { version = "*", features = ["winuser", "windef", "tlhelp32"] }
+winapi = { version = "*", features = ["winuser", "windef"] }
 anyhow = "*"
 tokio = { version = "*", features = ["full"] }
 arboard = "*"
@@ -30,6 +31,10 @@ chrono = "*"
 base64 = "*"
 sha256 = "*"
 format-sql-query = "*"
+color_space = "*"
+
+[dependencies.src-macro]
+path = "../src-macro"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
