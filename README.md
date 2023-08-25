@@ -2,7 +2,7 @@
 
 Windows剪切板图片工具
 
-完全本地化，无需联网。目前功能还在逐渐完善中。
+完全本地化，无需联网。目前功能还在逐渐完善中。代码有亿点乱，后续重构一下。
 
 打包产物：[https://github.com/ConanYu/windows-clipboard-image-helper/releases](https://github.com/ConanYu/windows-clipboard-image-helper/releases)
 

@@ -5,6 +5,7 @@ use std::sync::RwLock;
 use anyhow::Result;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD_NO_PAD;
+use log::error;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem, Window, Wry};
@@ -49,19 +50,22 @@ struct ImageShow {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-fn get_image(request: GetImageRequest) -> Result<Vec<ImageShow>, String> {
-    match dal::model::get_image(request) {
-        Ok(image) => {
-            let mut resp = vec![];
-            for image in image {
+async fn get_image(request: GetImageRequest) -> Result<Vec<ImageShow>, String> {
+    match dal::model::get_image(request).await {
+        Ok(img) => {
+            let mut resp = Vec::new();
+            for img in img {
+                if &img.width <= &0 || &img.height <= &0 {
+                    return Err("".to_string());
+                }
                 resp.push(ImageShow {
-                    id: image.id,
-                    image: STANDARD_NO_PAD.encode(image.image),
-                    ocr: image.ocr,
-                    width: image.width,
-                    height: image.height,
-                    ctime: image.ctime,
-                    mtime: image.mtime,
+                    id: img.id,
+                    image: STANDARD_NO_PAD.encode(img.image),
+                    ocr: img.ocr,
+                    width: img.width,
+                    height: img.height,
+                    ctime: img.ctime,
+                    mtime: img.mtime,
                 });
             }
             Ok(resp)
@@ -104,8 +108,13 @@ where T: tauri_runtime::Runtime<tauri::EventLoopMessage> {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-fn upload_image(image_path: Vec<String>) -> Result<(), String> {
-    conv_result(dal::upload_image(&image_path))
+async fn upload_image(image_path: Vec<String>) -> Result<(), String> {
+    tokio::spawn(async move {
+        if let Err(err) = dal::upload_image(&image_path).await {
+            error!("upload image with error: {}", err.to_string());
+        }
+    });
+    Ok(())
 }
 
 fn gen_tray() -> SystemTray {
@@ -123,11 +132,11 @@ static IDENTIFIER: Lazy<RwLock<String>> = Lazy::new(|| {
 });
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
     // TODO: 这个程序不能多开 要进行一个多开检测
 
-    initialize::init_logger()?;
-    initialize::init_database()?;
+    let _ = initialize::init_logger().unwrap();
+    initialize::init_database().unwrap();
     listen(save_image);
     tokio::spawn(regular_cleaning());
 
@@ -180,11 +189,9 @@ async fn main() -> Result<()> {
                 api.prevent_close();
             }
             _ => {}
-        }).build(tauri::generate_context!())?;
+        }).build(tauri::generate_context!()).unwrap();
 
     *IDENTIFIER.write().unwrap() = app.config().tauri.bundle.identifier.clone();
 
     app.run(|_app_handler, _event| {});
-
-    Ok(())
 }

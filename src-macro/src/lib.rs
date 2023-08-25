@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Result, Error, Data, Fields, DeriveInput};
+use syn::{parse_macro_input, Result, Error, Data, Fields, DeriveInput, FnArg, ItemFn};
 
 type StructFields = syn::punctuated::Punctuated<syn::Field, syn::Token!(,)>;
 
@@ -43,4 +43,32 @@ pub fn derive_updater(input: TokenStream) -> TokenStream {
     expand_derive_updater(&input)
         .unwrap_or_else(Error::into_compile_error)
         .into()
+}
+
+#[proc_macro_attribute]
+pub fn time_consuming(_: TokenStream, item: TokenStream) -> TokenStream {
+    let decoratee = parse_macro_input!(item as ItemFn);
+    let vis = &decoratee.vis;
+    let ident = &decoratee.sig.ident;
+    let block = &decoratee.block;
+    let inputs = &decoratee.sig.inputs;
+    let output = &decoratee.sig.output;
+    let arguments: Vec<_> = inputs
+        .iter()
+        .map(|input| match input {
+            FnArg::Typed(val) => &val.pat,
+            _ => unreachable!()
+        })
+        .collect();
+    let gen = quote! {
+        #vis fn #ident(#inputs) #output {
+            let begin = chrono::Local::now().timestamp_millis();
+            fn func(#inputs) #output #block ;
+            let r = func(#(#arguments), *);
+            let end = chrono::Local::now().timestamp_millis();
+            log::info!("{} spent time: {} ms", std::stringify!(#ident), end - begin);
+            return r;
+        }
+    };
+    gen.into()
 }

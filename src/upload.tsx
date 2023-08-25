@@ -21,11 +21,6 @@ export default function Upload() {
           } else {
             imagePath = file;
           }
-          messageApi.open({
-            type: 'info',
-            content: '提交成功',
-          }).then(() => {
-          });
           return await invoke('upload_image', {image_path: imagePath});
         }
         return 'canceled';
@@ -34,7 +29,7 @@ export default function Upload() {
         if (value !== 'canceled') {
           return messageApi.open({
             type: 'success',
-            content: '上传成功',
+            content: '已触发后台上传',
           });
         }
       })

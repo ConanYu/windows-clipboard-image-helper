@@ -61,7 +61,7 @@ pub fn save_image(data: ImageData) {
     }
 }
 
-pub fn upload_image(image_path: &Vec<String>) -> Result<()> {
+pub async fn upload_image(image_path: &Vec<String>) -> Result<()> {
     let mut img = vec![];
     for path in image_path {
         let data = fs::read(path)?;

@@ -138,7 +138,7 @@ export default function Index(props: { jumpDetailPage: (imageId: number) => void
     marginBottom: 30
   };
   const SearchButton = () => {
-    return <Button type="primary" style={{marginLeft: 10}} onClick={() => {
+    return <Button type="primary" style={{marginLeft: 10}} disabled={loading} onClick={() => {
       showImage({reload: true});
     }}>查询</Button>;
   };
@@ -156,8 +156,8 @@ export default function Index(props: { jumpDetailPage: (imageId: number) => void
           if (!checked) {
             setDateRange([]);
             setColorFilter(undefined);
+            showImage({reload: true, showImageDateRange: []});
           }
-          showImage({reload: true, showImageDateRange: []});
         }}/>
         {
           moreCondition ? (

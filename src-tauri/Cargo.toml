@@ -21,7 +21,8 @@ winapi = { version = "*", features = ["winuser", "windef"] }
 anyhow = "*"
 tokio = { version = "*", features = ["full"] }
 arboard = "*"
-reqwest = "*"
+reqwest = { version = "*", features = ["stream"] }
+futures-util = "*"
 log = "*"
 log4rs = "*"
 rusqlite = { version = "*", features = ["bundled"] }
