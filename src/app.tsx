@@ -1,27 +1,20 @@
 import {useState} from "react";
 import {Button, Checkbox, FloatButton, Modal} from "antd";
-import {
-  AppstoreOutlined,
-  ArrowLeftOutlined,
-  DownOutlined,
-  SettingOutlined,
-  UploadOutlined,
-  UpOutlined,
-} from "@ant-design/icons";
+import {AppstoreOutlined, ArrowLeftOutlined, SettingOutlined} from "@ant-design/icons";
 import Index from "./index";
 import Settings from "./settings";
 import Detail from "./detail";
-import Upload from './upload';
 import {listen, TauriEvent} from "@tauri-apps/api/event";
 import {invoke} from "@tauri-apps/api";
 
 export default function App() {
-  const [pageInfo, setPageInfo] = useState<'index' | 'settings' | 'detail' | 'upload'>('index');
+  const [pageInfo, setPageInfo] = useState<'index' | 'settings' | 'detail'>('index');
   const [imageId, setImageId] = useState<number>(0);
   const [openConfirmCloseModal, setOpenConfirmCloseModal] = useState(false);
   const [confirmCloseChecked, setConfirmCloseChecked] = useState(false);
   const closeModal = () => {
-    window.location.reload();
+    setConfirmCloseChecked(false);
+    setOpenConfirmCloseModal(false);
   };
   const closeWindow = (force: boolean) => {
     invoke('close_window', {force, remember: confirmCloseChecked}).then(() => {
@@ -49,19 +42,9 @@ export default function App() {
             setPageInfo('detail');
             setImageId(id);
           }}/>
-          <FloatButton.Group
-            trigger="click"
-            style={{right: 24}}
-            icon={<UpOutlined/>}
-            closeIcon={<DownOutlined/>}
-          >
-            <FloatButton icon={<UploadOutlined/>} type="default" onClick={() => {
-              setPageInfo('upload');
-            }}/>
-            <FloatButton icon={<SettingOutlined/>} type="default" onClick={() => {
-              setPageInfo('settings');
-            }}></FloatButton>
-          </FloatButton.Group>
+          <FloatButton icon={<SettingOutlined/>} style={{right: 24}} type="default" onClick={() => {
+            setPageInfo('settings');
+          }}></FloatButton>
         </>
       );
     } else if (pageInfo === 'settings') {
@@ -84,15 +67,6 @@ export default function App() {
           <Detail imageId={imageId} jumpIndex={() => {
             setPageInfo('index');
           }}/>
-        </>
-      );
-    } else if (pageInfo === 'upload') {
-      return (
-        <>
-          <Upload/>
-          <FloatButton icon={<AppstoreOutlined/>} type="default" style={{right: 36}} onClick={() => {
-            setPageInfo('index');
-          }}></FloatButton>
         </>
       );
     }

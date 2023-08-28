@@ -1,13 +1,16 @@
 import {invoke} from "@tauri-apps/api";
 import {
   Button,
+  Checkbox,
   Col,
   ColorPicker,
   DatePicker,
   Divider,
+  FloatButton,
   Image as AntdImage,
-  Input,
-  Popover, Slider,
+  Input, message, Popconfirm,
+  Popover,
+  Slider,
   Space,
   Spin,
   Switch,
@@ -15,11 +18,22 @@ import {
 import React, {CSSProperties, useEffect, useState} from "react";
 import {InView} from "react-intersection-observer";
 import {CalcImagePaddleStyle, DateToString} from "./util";
+import {DeleteOutlined, QuestionCircleOutlined} from "@ant-design/icons";
 
 const {RangePicker} = DatePicker;
 
-function ImageBlock(props: { image: any, jumpDetailPage: (imageId: number) => void, onView?: (inView: boolean, entry: IntersectionObserverEntry) => void }) {
-  const {image, jumpDetailPage, onView} = props;
+type ImageBlockType = {
+  image: any,
+  jumpDetailPage: (imageId: number) => void,
+  onView?: (inView: boolean, entry: IntersectionObserverEntry) => void,
+  setSelected: (selected: boolean) => void,
+};
+
+function ImageBlock(props: ImageBlockType) {
+  const [checked, setChecked] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
+  const {image, jumpDetailPage, onView, setSelected} = props;
   const {width, height, ctime, mtime} = image;
   const src = `data:image/png;base64,${image.image}`;
   const blockWidth = 170;
@@ -29,13 +43,28 @@ function ImageBlock(props: { image: any, jumpDetailPage: (imageId: number) => vo
   const modifyDate = new Date(mtime);
   return (
     <>
-      {onView ? <InView as="span" onChange={onView}></InView> : <></>}
+      {onView ? <InView as="span" onChange={onView}/> : <></>}
+      {
+        open || hover || checked ? (
+          <Checkbox style={{
+            position: 'absolute',
+            marginLeft: blockWidth - (style.paddingRight as number) - 16 - 3,
+            marginTop: blockHeight - (style.paddingBottom as number) - 16 - 6,
+            zIndex: 2,
+          }} onChange={(e) => {
+            setChecked(e.target.checked);
+            setSelected(e.target.checked);
+          }} checked={checked} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}/>
+        ) : <></>
+      }
       <Popover content={
         <div>
           <div>添加时间：{DateToString(createDate)}</div>
           <div>上次使用：{DateToString(modifyDate)}</div>
         </div>
-      }>
+      } onOpenChange={(open) => {
+        setOpen(open);
+      }} open={open || hover} style={{zIndex: 1}}>
         <AntdImage width={blockWidth} height={blockHeight} preview={false} src={src} style={{
           ...style,
           cursor: "pointer",
@@ -58,6 +87,8 @@ export default function Index(props: { jumpDetailPage: (imageId: number) => void
   const [coverRatio, setCoverRatio] = useState<[number, number]>([50, 100]);
   const [difference, setDifference] = useState(5);
   const [colorFilter, setColorFilter] = useState<[number, number, number] | undefined>(undefined);
+  const [selectedImage, setSelectedImage] = useState<number[]>([]);
+  const [messageApi, contextHolder] = message.useMessage();
   const showImage = (props: {
     reload: boolean,
     showImageSearchText?: string,
@@ -118,6 +149,7 @@ export default function Index(props: { jumpDetailPage: (imageId: number) => void
     } else {
       content.push(<span style={{marginLeft: 15}} key={content.length}/>);
     }
+    const imageId = image.id;
     content.push(
       <span key={content.length}>
         <ImageBlock image={image} jumpDetailPage={props.jumpDetailPage} onView={
@@ -127,7 +159,20 @@ export default function Index(props: { jumpDetailPage: (imageId: number) => void
               showImage({reload: false, mtime: mtime});
             }
           } : undefined
-        }/>
+        } setSelected={(selected) => {
+          setSelectedImage((() => {
+            const ret: number[] = [];
+            for (const id of selectedImage) {
+              if (selected || !selected && id !== imageId) {
+                ret.push(id);
+              }
+            }
+            if (selected) {
+              ret.push(imageId);
+            }
+            return ret;
+          })());
+        }}/>
       </span>
     );
     index += 1;
@@ -144,6 +189,7 @@ export default function Index(props: { jumpDetailPage: (imageId: number) => void
   };
   return (
     <>
+      {contextHolder}
       <div style={{marginTop: 20, marginBottom: 10}}>
         <Input style={{marginLeft: 20, width: 600 + (moreCondition ? 80 : 0)}} addonBefore="图片文字" onChange={(e) => {
           setSearchText(e.target.value);
@@ -151,7 +197,7 @@ export default function Index(props: { jumpDetailPage: (imageId: number) => void
         }}/>
         {moreCondition ? <></> : <SearchButton/>}
         <Switch style={{marginLeft: 10, position: "absolute", transform: 'translate(0, 25%)'}}
-                checkedChildren="更多" unCheckedChildren="关闭" checked={moreCondition} onClick={(checked) => {
+                checkedChildren="关闭" unCheckedChildren="更多" checked={moreCondition} onClick={(checked) => {
           setMoreCondition(checked);
           if (!checked) {
             setDateRange([]);
@@ -186,7 +232,6 @@ export default function Index(props: { jumpDetailPage: (imageId: number) => void
                     }}
                     onClear={() => {
                       setColorFilter(undefined);
-
                     }} allowClear defaultValue={null}
                     styles={{popupOverlayInner: {width: 468 + 24}}}
                     panelRender={(_, {components: {Picker}}) => (
@@ -210,6 +255,29 @@ export default function Index(props: { jumpDetailPage: (imageId: number) => void
               </Space>
               <SearchButton/>
             </div>
+          ) : <></>
+        }
+        {
+          selectedImage.length > 0 ? (
+            <Popconfirm
+              title="确认删除所选图片" okText="确认" cancelText="取消"
+              icon={<QuestionCircleOutlined style={{color: 'red'}}/>}
+              onConfirm={() => {
+                invoke('delete_image', {image_id: selectedImage}).then(() => {
+                  messageApi.open({
+                    type: 'success',
+                    content: '删除成功，即将刷新页面。',
+                  }).then(() => {
+                    setTimeout(() => {
+                      window.location.reload();
+                    }, 0);
+                  });
+                });
+              }}
+            >
+              <FloatButton icon={<DeleteOutlined/>} style={{right: 84}} type="default"
+                           badge={{count: selectedImage.length}}/>
+            </Popconfirm>
           ) : <></>
         }
       </div>

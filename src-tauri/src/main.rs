@@ -80,8 +80,8 @@ fn re_copy(image_id: i32) -> Result<(), String> {
 }
 
 #[tauri::command(rename_all = "snake_case")]
-fn delete_image(image_id: i32) -> Result<(), String> {
-    conv_result(dal::model::delete_image(image_id))
+fn delete_image(image_id: Vec<i32>) -> Result<(), String> {
+    conv_result(dal::model::delete_image(&image_id))
 }
 
 #[tauri::command(rename_all = "snake_case")]
@@ -175,11 +175,17 @@ async fn main() {
             upload_image,
         ])
         .setup(|app| {
+            let window = app.get_window("main").unwrap();
             #[cfg(debug_assertions)]
             {
-                let window = app.get_window("main").unwrap();
                 window.open_devtools();
                 window.close_devtools();
+            }
+            for args in std::env::args() {
+                // 开机自启时后台开启
+                if args == "--auto_start" {
+                    window.hide().unwrap();
+                }
             }
             let _ = app;
             Ok(())

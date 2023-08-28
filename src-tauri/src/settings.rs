@@ -84,6 +84,8 @@ unsafe fn set_auto_start(auto_start: bool) -> Result<()> {
     }
     if auto_start {
         // 开机自启 设置值为当前运行程序
+        let mut exe = exe.to_os_string();
+        exe.push(" --auto_start");
         let value = exe.encode_wide().chain(std::iter::once(0)).collect::<Vec<_>>();
         let status = RegSetValueExW(
             hkey,

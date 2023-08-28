@@ -70,9 +70,10 @@ pub fn insert_image(image: &Vec<u8>, width: &i32, height: &i32, ocr: &Option<OCR
     Ok(())
 }
 
-pub fn delete_image(image_id: i32) -> Result<()> {
+pub fn delete_image(image_id: &Vec<i32>) -> Result<()> {
     let client = client();
-    client.execute(r#"DELETE FROM image WHERE id = ?1"#, (&image_id, ))?;
+    let image_id: Vec<String> = image_id.iter().map(|v| v.to_string()).collect();
+    client.execute(format!(r#"DELETE FROM image WHERE id IN ({})"#, image_id.join(", ")).as_str(), ())?;
     Ok(())
 }
 

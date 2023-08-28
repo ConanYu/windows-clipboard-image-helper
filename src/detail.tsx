@@ -47,14 +47,14 @@ export default function Detail(props: { imageId: number, jumpIndex: () => void }
           <Popconfirm
             title="确认删除这张图片？"
             onConfirm={() => {
-              invoke('delete_image', {image_id: imageId}).then(() => {
+              invoke('delete_image', {image_id: [imageId]}).then(() => {
                 messageApi.open({
                   type: 'success',
-                  content: '删除成功，一秒后将返回主页。',
+                  content: '删除成功，即将返回主页。',
                 }).then(() => {
                   setTimeout(() => {
                     props.jumpIndex();
-                  }, 1000);
+                  }, 0);
                 });
               });
             }}
