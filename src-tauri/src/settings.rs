@@ -2,7 +2,7 @@ use std::{env, fs};
 use std::ffi::{OsStr, OsString};
 use std::ops::{Deref, Not};
 use std::os::windows::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::ptr::null_mut;
 use std::sync::RwLock;
 use anyhow::{bail, Result};
@@ -13,25 +13,7 @@ use winapi::shared::minwindef::{DWORD, HKEY};
 use winapi::um::winnt::REG_SZ;
 use winapi::um::winreg::{HKEY_CURRENT_USER, RegDeleteValueW, RegOpenKeyW, RegQueryValueExW, RegSetValueExW};
 use src_macro::Updater;
-
-static ROOT: Lazy<Box<Path>> = Lazy::new(|| {
-    let mut root;
-    if cfg!(debug_assertions) {
-        root = env::current_dir().unwrap();
-    } else {
-        root = env::current_exe().unwrap();
-        root.pop();
-    }
-    let root = root.join(".windows-clipboard-image-helper").into_boxed_path();
-    if !root.is_dir() {
-        fs::create_dir(root.clone()).unwrap();
-    }
-    root
-});
-
-pub fn get_root() -> &'static Path {
-    ROOT.deref()
-}
+use crate::common::get_root;
 
 unsafe fn set_auto_start(auto_start: bool) -> Result<()> {
     // DEBUG模式下无法运行
@@ -117,23 +99,16 @@ pub enum DatabaseLimitType {
     NUM,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum CloseWindowType {
-    QUERY,
-    BACKGROUND,
-    EXIT,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Updater)]
 pub struct Settings {
     pub auto_start: Option<bool>,
     pub database_limit_type: Option<DatabaseLimitType>,
     pub database_limit: Option<i64>,
-    pub close_window_type: Option<CloseWindowType>,
+    pub ocr_feature: Option<bool>,
 }
 
 fn get_settings_path() -> PathBuf {
-    let root = ROOT.deref().deref();
+    let root = get_root();
     root.join("settings.json")
 }
 
@@ -160,7 +135,7 @@ static SETTINGS: Lazy<RwLock<Settings>> = Lazy::new(|| {
             auto_start: Some(false),
             database_limit_type: Some(DatabaseLimitType::MB),
             database_limit: Some(1024),
-            close_window_type: Some(CloseWindowType::QUERY),
+            ocr_feature: Some(false),
         };
         fs::write(path.as_path(), serde_json::to_string(&settings).unwrap().as_bytes()).unwrap();
         settings

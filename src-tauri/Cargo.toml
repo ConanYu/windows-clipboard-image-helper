@@ -17,6 +17,7 @@ tauri = { version = "*", features = ["dialog-open", "notification-all", "system-
 tauri-runtime = "*"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
+erased-serde = "*"
 winapi = { version = "*", features = ["winuser", "windef"] }
 anyhow = "*"
 tokio = { version = "*", features = ["full"] }
@@ -33,6 +34,7 @@ base64 = "*"
 sha256 = "*"
 format-sql-query = "*"
 color_space = "*"
+bytes = "*"
 
 [dependencies.src-macro]
 path = "../src-macro"

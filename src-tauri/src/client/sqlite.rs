@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use once_cell::sync::Lazy;
 use rusqlite::Connection;
-use crate::settings::get_root;
+use crate::common::get_root;
 
 static PATH: Lazy<String> = Lazy::new(|| {
     let root = get_root();

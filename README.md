@@ -2,7 +2,7 @@
 
 Windows剪切板图片工具
 
-完全本地化，无需联网。目前功能还在逐渐完善中。代码有亿点乱，后续重构一下。
+完全本地化，无需联网。目前功能还在逐渐完善中。
 
 打包产物：[https://github.com/ConanYu/windows-clipboard-image-helper/releases](https://github.com/ConanYu/windows-clipboard-image-helper/releases)
 
@@ -43,3 +43,9 @@ Windows剪切板图片工具
 - 为什么用[PaddleOCR-json](https://github.com/hiroi-sora/PaddleOCR-json)？
 
 因为没找到其他开箱即用的OCR工具。
+
+## TodoList
+
+- 优化轮询OCR检测
+- 目前前端展示速度很慢
+- 加上快捷键功能

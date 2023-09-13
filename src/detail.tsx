@@ -33,7 +33,7 @@ export default function Detail(props: { imageId: number, jumpIndex: () => void }
       <>
         {contextHolder}
         <Image width={width} height={height} src={src} style={style}/>
-        <div style={{marginTop: 10}}>
+        <div style={{marginTop: 10, marginLeft: 20}}>
           <Button type="primary" ghost onClick={() => {
             invoke('re_copy', {image_id: imageId}).then(() => {
               return messageApi.open({

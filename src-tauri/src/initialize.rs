@@ -4,8 +4,8 @@ use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
 use log::{info, LevelFilter};
 use rusqlite::{Connection, named_params};
-use crate::dal::client::client;
-use crate::settings::get_root;
+use crate::client::sqlite::client;
+use crate::common::get_root;
 
 pub fn init_logger() -> Result<log4rs::Handle> {
     let root = get_root();

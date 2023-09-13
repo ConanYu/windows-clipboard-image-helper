@@ -188,7 +188,7 @@ export default function Index(props: { jumpDetailPage: (imageId: number) => void
     }}>查询</Button>;
   };
   return (
-    <>
+    <div style={{marginLeft: 8}}>
       {contextHolder}
       <div style={{marginTop: 20, marginBottom: 10}}>
         <Input style={{marginLeft: 20, width: 600 + (moreCondition ? 80 : 0)}} addonBefore="图片文字" onChange={(e) => {
@@ -284,6 +284,6 @@ export default function Index(props: { jumpDetailPage: (imageId: number) => void
       {content}
       {loading ? <div style={footerStyle}><Spin size="large"/></div> : <></>}
       {!loading && lastImageLen < 16 ? <div style={footerStyle}>已展示全部内容</div> : <></>}
-    </>
+    </div>
   );
 }

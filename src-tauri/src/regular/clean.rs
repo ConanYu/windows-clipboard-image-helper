@@ -2,7 +2,7 @@ use std::fs;
 use anyhow::Result;
 use log::error;
 use rusqlite::named_params;
-use crate::dal::client::{client, get_database_path};
+use crate::client::sqlite::{client, get_database_path};
 use crate::settings::{get_settings, DatabaseLimitType};
 
 pub fn get_count_of_image() -> Result<i64> {
@@ -16,7 +16,7 @@ pub fn get_count_of_image() -> Result<i64> {
     Ok(count)
 }
 
-pub async fn regular_cleaning() {
+pub async fn clean() {
     loop {
         let settings = get_settings();
         let mut need_clean = false;

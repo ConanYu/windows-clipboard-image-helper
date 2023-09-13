@@ -1,5 +1,5 @@
-import {useState} from "react";
-import {Button, Checkbox, FloatButton, Modal} from "antd";
+import {useEffect, useState} from "react";
+import {Button, FloatButton} from "antd";
 import {AppstoreOutlined, ArrowLeftOutlined, SettingOutlined} from "@ant-design/icons";
 import Index from "./index";
 import Settings from "./settings";
@@ -8,32 +8,21 @@ import {listen, TauriEvent} from "@tauri-apps/api/event";
 import {invoke} from "@tauri-apps/api";
 
 export default function App() {
-  const [pageInfo, setPageInfo] = useState<'index' | 'settings' | 'detail'>('index');
+  const [pageInfo, setPageInfo] = useState<'index' | 'settings' | 'detail' | 'empty'>('index');
   const [imageId, setImageId] = useState<number>(0);
-  const [openConfirmCloseModal, setOpenConfirmCloseModal] = useState(false);
-  const [confirmCloseChecked, setConfirmCloseChecked] = useState(false);
-  const closeModal = () => {
-    setConfirmCloseChecked(false);
-    setOpenConfirmCloseModal(false);
-  };
-  const closeWindow = (force: boolean) => {
-    invoke('close_window', {force, remember: confirmCloseChecked}).then(() => {
-      closeModal();
+  useEffect(() => {
+    // 聚焦
+    listen(TauriEvent.WINDOW_FOCUS, () => {
+      invoke('get_escape_blur', {}).then((escape_blur) => {
+        if (!escape_blur) {
+          window.location.reload();
+        }
+      }).catch((e) => {
+        console.error(e);
+      });
+    }).then(() => {
     });
-  };
-  listen(TauriEvent.WINDOW_CLOSE_REQUESTED, () => {
-    invoke('get_settings', {}).then((settings: any) => {
-      const closeWindowType = settings?.close_window_type;
-      if (closeWindowType === 'EXIT') {
-        closeWindow(true);
-      } else if (closeWindowType === 'BACKGROUND') {
-        closeWindow(false);
-      } else {
-        setOpenConfirmCloseModal(true);
-      }
-    });
-  }).then(() => {
-  });
+  }, []);
   const Main = (() => {
     if (pageInfo === 'index') {
       return (
@@ -69,21 +58,15 @@ export default function App() {
           }}/>
         </>
       );
+    } else if (pageInfo === 'empty') {
+      // 强制刷新使用
+      return <></>;
     }
     const _: never = pageInfo;
     return <></>;
   })();
   return (
     <>
-      <Modal title="确认关闭" open={openConfirmCloseModal} footer={[
-        <Button key="return" onClick={closeModal}>返回</Button>,
-        <Button key="exit" danger onClick={() => closeWindow(true)}>退出</Button>,
-        <Button key="backend" type="primary" ghost onClick={() => closeWindow(false)}>后台运行</Button>,
-      ]} onCancel={closeModal}>
-        <Checkbox checked={confirmCloseChecked} onChange={(e) => {
-          setConfirmCloseChecked(e.target.checked);
-        }}>下次不再提醒</Checkbox>
-      </Modal>
       {Main}
     </>
   );

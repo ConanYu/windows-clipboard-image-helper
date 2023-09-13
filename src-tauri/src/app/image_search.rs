@@ -1,106 +1,12 @@
 use std::ops::Not;
-use anyhow::{bail, Result};
-use chrono::Local;
+use anyhow::{Result, bail};
 use color_space::{CompareCie2000, Lab, Rgb};
 use format_sql_query::QuotedData;
 use image::{GenericImageView, load_from_memory};
 use rusqlite::named_params;
-use serde::{Deserialize, Serialize};
-use crate::dal::client::client;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OCRBox {
-    pub r#box: [[u32; 2]; 4],
-    pub score: f64,
-    pub text: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum OCRData {
-    Box(Vec<OCRBox>),
-    Text(String),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OCR {
-    pub code: i32,
-    pub data: OCRData,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Image {
-    pub id: i64,
-    pub image: Vec<u8>,
-    pub ocr: Option<OCR>,
-    pub size: i64,
-    pub width: i32,
-    pub height: i32,
-    pub ctime: i64,
-    pub mtime: i64,
-    pub sum: String,
-}
-
-pub fn insert_image(image: &Vec<u8>, width: &i32, height: &i32, ocr: &Option<OCR>, sum: &String) -> Result<()> {
-    let client = client();
-    // 校验是否是上一次插入的图片
-    let mut stmt = client.prepare("SELECT id, sum FROM image ORDER BY mtime DESC LIMIT 1")?;
-    let mut rows = stmt.query(named_params! {})?;
-    let mut last_sum = "-".to_string();
-    let mut id = 0;
-    while let Some(row) = rows.next()? {
-        id = row.get(0)?;
-        last_sum = row.get(1)?;
-    }
-    let now = Local::now().timestamp_millis();
-    if &last_sum == sum {
-        // 设置修改时间
-        client.execute(r#"UPDATE image SET mtime = ?2 WHERE id = ?1"#, (&id, &now))?;
-        return Ok(());
-    }
-    // 正式开始插入图片
-    let ocr = match ocr {
-        None => None,
-        Some(ocr) => Some(serde_json::to_string(ocr)?),
-    };
-    let size = image.len() as i64;
-    client.execute(r#"INSERT INTO image (image, ocr, size, width, height, ctime, mtime, sum)
-                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"#,
-                   (image, &ocr, &size, width, height, &now, &now, sum))?;
-    Ok(())
-}
-
-pub fn delete_image(image_id: &Vec<i32>) -> Result<()> {
-    let client = client();
-    let image_id: Vec<String> = image_id.iter().map(|v| v.to_string()).collect();
-    client.execute(format!(r#"DELETE FROM image WHERE id IN ({})"#, image_id.join(", ")).as_str(), ())?;
-    Ok(())
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ColorFilter {
-    pub red: u8,
-    pub green: u8,
-    pub blue: u8,
-    // 覆盖比例 范围：[0,1]
-    pub cover_ratio_from: f64,
-    pub cover_ratio_to: f64,
-    // 可接受的DeltaE 范围：[0,100]
-    pub difference: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GetImageRequest {
-    // 上一次返回图片中最小的mtime
-    pub mtime: Option<i64>,
-    // 返回图片的最大数量
-    pub limit: Option<i64>,
-    pub id: Option<Vec<i64>>,
-    pub text: Option<Vec<String>>,
-    pub date_range_from: Option<i64>,
-    pub date_range_to: Option<i64>,
-    pub color_filter: Option<ColorFilter>,
-}
+use crate::app::{ColorFilter, GetImageRequest};
+use crate::client::sqlite::client;
+use crate::model::{Image, ImageData};
 
 fn gen_where_sql(request: &GetImageRequest) -> String {
     let mut sql = "".to_string();
@@ -135,38 +41,6 @@ fn gen_where_sql(request: &GetImageRequest) -> String {
     sql
 }
 
-fn get_image_inner(request: &GetImageRequest) -> Result<Vec<Image>> {
-    let client = client();
-    // 对请求做进一步处理
-    let limit = request.limit.or(Some(16)).unwrap();
-
-    // 构造SQL
-    let mut sql = r#" SELECT id, image, ocr, size, width, height, ctime, mtime, sum FROM image WHERE 1 = 1 "#.to_string();
-    sql.push_str(gen_where_sql(request).as_str());
-    sql.push_str(" ORDER BY mtime DESC LIMIT :limit");
-    let mut stmt = client.prepare(sql.as_str())?;
-    let mut rows = stmt.query(named_params! {
-        ":limit": limit,
-    })?;
-
-    // 构造返回值
-    let mut ret = vec![];
-    while let Some(row) = rows.next()? {
-        ret.push(Image {
-            id: row.get(0)?,
-            image: row.get(1)?,
-            ocr: serde_json::from_str(row.get::<usize, String>(2)?.as_str())?,
-            size: row.get(3)?,
-            width: row.get(4)?,
-            height: row.get(5)?,
-            ctime: row.get(6)?,
-            mtime: row.get(7)?,
-            sum: row.get(8)?,
-        });
-    }
-    Ok(ret)
-}
-
 async unsafe fn do_color_filter_inner(image: &image::RgbImage, x: u32, y: u32, color: &Lab, difference: &f64) -> bool {
     let p = image.unsafe_get_pixel(x.clone(), y.clone());
     let c = Lab::from(Rgb::new(p[0].clone() as f64, p[1].clone() as f64, p[2].clone() as f64));
@@ -175,7 +49,7 @@ async unsafe fn do_color_filter_inner(image: &image::RgbImage, x: u32, y: u32, c
 }
 
 async fn do_color_filter(image: &Image, color_filter: &ColorFilter) -> Result<bool> {
-    let image = load_from_memory(image.image.as_slice())?;
+    let image = load_from_memory(image.image.must_binary().as_slice())?;
     let image = image.into_rgb8();
     let width = image.width();
     let height = image.height();
@@ -206,6 +80,41 @@ async fn filter_image(image: &Image, request: &GetImageRequest) -> Result<bool> 
         }
     }
     Ok(true)
+}
+
+fn get_image_inner(request: &GetImageRequest) -> Result<Vec<Image>> {
+    let client = client();
+    // 对请求做进一步处理
+    let limit = request.limit.or(Some(16)).unwrap();
+
+    // 构造SQL
+    let mut sql = r#" SELECT id, image, ocr, size, width, height, ctime, mtime, sum FROM image WHERE 1 = 1 "#.to_string();
+    sql.push_str(gen_where_sql(request).as_str());
+    sql.push_str(" ORDER BY mtime DESC LIMIT :limit");
+    let mut stmt = client.prepare(sql.as_str())?;
+    let mut rows = stmt.query(named_params! {
+        ":limit": limit,
+    })?;
+
+    // 构造返回值
+    let mut ret = vec![];
+    while let Some(row) = rows.next()? {
+        ret.push(Image {
+            id: row.get(0)?,
+            image: ImageData::Binary(row.get(1)?),
+            ocr: match row.get::<usize, Option<String>>(2)? {
+                None => None,
+                Some(ocr) => serde_json::from_str(ocr.as_str())?,
+            },
+            size: row.get(3)?,
+            width: row.get(4)?,
+            height: row.get(5)?,
+            ctime: row.get(6)?,
+            mtime: row.get(7)?,
+            sum: row.get(8)?,
+        });
+    }
+    Ok(ret)
 }
 
 pub async fn get_image(request: GetImageRequest) -> Result<Vec<Image>> {

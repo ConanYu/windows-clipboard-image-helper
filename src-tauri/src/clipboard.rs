@@ -8,7 +8,7 @@ use image::EncodableLayout;
 use rusqlite::named_params;
 use winapi::shared::windef::HWND;
 use winapi::um::winuser::{AddClipboardFormatListener, CreateWindowExW, GetMessageW, HWND_MESSAGE, MSG, WM_CLIPBOARDUPDATE};
-use crate::dal::client::client;
+use crate::client::sqlite::client;
 
 pub fn re_copy(image_id: i32) -> Result<()> {
     let client = client();
