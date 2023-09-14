@@ -99,6 +99,7 @@ async fn download() -> Result<()> {
     let mut arg = std::ffi::OsString::from("-o");
     arg.push(get_root().as_os_str());
     let r = Command::new(sz.as_os_str())
+        .creation_flags(CREATE_NO_WINDOW) // 不显示窗口
         .args([std::ffi::OsStr::new("x"), arg.as_os_str(), CACHE_PATH.as_os_str()])
         .output()?;
     if r.status.code().unwrap() != 0 {
@@ -119,6 +120,7 @@ fn check_ready() -> Result<bool> {
     if is_dir {
         let sz = ensure_seven_zip();
         let r = Command::new(sz.as_os_str())
+            .creation_flags(CREATE_NO_WINDOW) // 不显示窗口
             .args([std::ffi::OsStr::new("h"), OCR_PATH.deref().as_os_str()])
             .output()?;
         let s = String::from_utf8(r.stdout)?;
