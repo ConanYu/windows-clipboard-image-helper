@@ -39,14 +39,14 @@ fn update_ocr(id: &i32, ocr: &OCR) -> Result<()> {
     Ok(())
 }
 
-async fn ocr_inner() -> Result<()> {
+async fn ocr_inner() -> Result<bool> {
     // OCR未就绪
     if status().await? <= 100.0 {
-        return Ok(());
+        return Ok(false);
     }
     let (id, image) = get_one_without_ocr()?;
     if id == -1 {
-        return Ok(());
+        return Ok(false);
     }
     let r;
     {
@@ -55,15 +55,24 @@ async fn ocr_inner() -> Result<()> {
         r = analyze(CACHE_PATH.deref()).await?;
     }
     update_ocr(&id, &r)?;
-    Ok(())
+    Ok(true)
 }
 
 pub async fn ocr() {
     loop {
         let settings = settings::get_settings();
-        if settings.ocr_feature.is_some_and(|x| x) {
-            if let Err(err) = ocr_inner().await {
-                error!("regular ocr with error: {}", err.to_string());
+        let mut ok = true;
+        while ok {
+            ok = false;
+            if settings.ocr_feature.is_some_and(|x| x) {
+                match ocr_inner().await {
+                    Ok(r) => {
+                        ok = r;
+                    }
+                    Err(err) => {
+                        error!("regular ocr with error: {}", err.to_string());
+                    }
+                }
             }
         }
         // 每10秒检查有没有图片没有进行过OCR并对其进行OCR检查
