@@ -73,7 +73,7 @@ export default function Detail(props: { imageId: number, jumpIndex: () => void }
     }
     const createDate = new Date(image.ctime);
     const modifyDate = new Date(image.mtime);
-    const ocr: any = image?.ocr ?? [];
+    const ocr: any = image?.ocr ?? {};
     const text = (() => {
       if (ocr?.code !== 100) {
         return "";
@@ -114,7 +114,7 @@ export default function Detail(props: { imageId: number, jumpIndex: () => void }
                 whiteSpace: "pre-line",
                 color: '#AA0000',
                 userSelect: "none"
-              }}>当前图片没有文字</span>,
+              }}>{typeof ocr?.code === 'number' ? '当前图片没有文字' : 'OCR结果未就绪或OCR状态不可用'}</span>,
             }]}/>
           )
         }

@@ -2,7 +2,7 @@
 
 Windows剪切板图片工具
 
-完全本地化，无需联网。目前功能还在逐渐完善中。
+除了下载模型操作需要联网，其余操作完全本地化，无需联网。目前功能还在逐渐完善中。
 
 打包产物：[https://github.com/ConanYu/windows-clipboard-image-helper/releases](https://github.com/ConanYu/windows-clipboard-image-helper/releases)
 
@@ -15,6 +15,8 @@ Windows剪切板图片工具
 - 在搜索框中输入图片中的文字后，点击查询能查到包含这些文字的图片。
 
 ![](docs/img_2.png)
+
+- ...
 
 ## 为什么做
 
